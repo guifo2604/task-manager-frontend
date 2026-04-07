@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 import { useEffect, useState, useCallback } from "react";
 import { api } from "../services/api";
 import type { Task, User } from "../types"; 
@@ -9,69 +10,57 @@ export function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [taskToEdit, setTaskToEdit] = useState<Task | null>(null);
+  const [viewTask, setViewTask] = useState<Task | null>(null);
 
-  // 1. Função para carregar tarefas (agora fora do useEffect para ser reutilizável)
   const loadTasks = useCallback(async () => {
     try {
       const storedUser = localStorage.getItem("@TaskApp:user");
       if (!storedUser) return;
       const user: User = JSON.parse(storedUser);
-
       const response = await api.get<Task[]>(`/tasks/user/${user.idUser}`);
       setTasks(response.data);
     } catch (error) {
-      console.error("Erro ao carregar tarefas:", error);
+      console.error(error);
     } finally {
       setLoading(false);
     }
   }, []);
 
-  useEffect(() => {
-    loadTasks();
-  }, [loadTasks]);
+  useEffect(() => { loadTasks(); }, [loadTasks]);
 
-  // 2. Função para abrir o modal de criação (limpa o taskToEdit)
-  function handleOpenCreateModal() {
-    setTaskToEdit(null);
-    setIsModalOpen(true);
-  }
-
-  // 3. Função para abrir o modal de edição (seta a task selecionada)
-  function handleOpenEditModal(task: Task) {
-    setTaskToEdit(task);
-    setIsModalOpen(true);
-  }
-
-  async function handleDeleteTask(taskId: number) {
-    if (!window.confirm("Tem certeza que deseja excluir?")) return;
+  const handleDeleteTask = async (taskId: number) => {
+    if (!window.confirm("Deseja excluir?")) return;
     try {
       const storedUser = JSON.parse(localStorage.getItem("@TaskApp:user") || "{}");
       await api.delete(`/tasks/${taskId}/user/${storedUser.idUser}`);
       setTasks(prev => prev.filter(t => t.id !== taskId));
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    } catch (error) {
-      alert("Erro ao excluir tarefa");
+      setViewTask(null);
+    } catch (error) { 
+      alert("Erro ao excluir"); 
     }
-  }
+  };
 
-  async function handleUpdateStatus(taskId: number, currentStatus: string) {
-    const statusOrder: ("ToDo" | "InProgress" | "Completed")[] = ["ToDo", "InProgress", "Completed"];
-    const currentIndex = statusOrder.indexOf(currentStatus as "ToDo" | "InProgress" | "Completed");
-    const nextStatus = statusOrder[(currentIndex + 1) % statusOrder.length];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const handleUpdateStatus = async (taskId: number, currentStatus: any) => {
+    const statusOrder = ["ToDo", "InProgress", "Completed"];
+    const nextStatus = statusOrder[(statusOrder.indexOf(currentStatus) + 1) % statusOrder.length];
+    const taskToUpdate = tasks.find(t => t.id === taskId);
+    if (!taskToUpdate) return;
 
     try {
       const storedUser = JSON.parse(localStorage.getItem("@TaskApp:user") || "{}");
       await api.put(`/tasks/${taskId}/user/${storedUser.idUser}`, {
+        ...taskToUpdate,
         status: nextStatus
       });
-      setTasks(prev => prev.map(t => t.id === taskId ? { ...t, status: nextStatus } : t));
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    } catch (error) {
-      alert("Erro ao atualizar status");
+      // Correção do erro de tipo do print:
+      setTasks(prev => prev.map(t => t.id === taskId ? ({ ...t, status: nextStatus } as Task) : t));
+    } catch (error) { 
+      alert("Erro no status"); 
     }
-  }
+  };
 
-  if (loading) return <div className="p-8 text-center">Carregando...</div>;
+  if (loading) return <div className="p-8 text-center font-bold">Carregando...</div>;
 
   return (
     <div className="min-h-screen bg-[#f5f5dd] p-8">
@@ -79,38 +68,68 @@ export function Dashboard() {
         <header className="flex justify-between items-center mb-8">
           <h1 className="text-3xl font-bold text-gray-900">Minhas Tarefas</h1>
           <button 
-            onClick={handleOpenCreateModal} // Chama a função que limpa a edição
-            className="bg-gray-900 text-white px-4 py-2 rounded-lg font-medium hover:bg-gray-800 transition-all">
+            onClick={() => { setTaskToEdit(null); setIsModalOpen(true); }}
+            className="bg-gray-900 text-white px-4 py-2 rounded-lg font-medium hover:bg-black transition-all"
+          >
             + Nova Tarefa
           </button>
         </header>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {tasks.length > 0 ? (
-            tasks.map((task) => (
-              <TaskCard 
-                key={task.id} 
-                task={task} 
-                onDelete={handleDeleteTask}
-                onUpdateStatus={handleUpdateStatus}
-                onEdit={handleOpenEditModal} // Agora passa a função que seta a taskToEdit
-              /> 
-            ))
-          ) : (
-            <p className="text-gray-500">Nenhuma tarefa encontrada. Que tal criar uma?</p>
-          )}
+          {tasks.map((task) => (
+            <TaskCard 
+              key={task.id} 
+              task={task} 
+              onUpdateStatus={handleUpdateStatus}
+              onView={(t) => setViewTask(t)} 
+            /> 
+          ))}
         </div>
       </div>
 
       <CreateTaskModal 
         isOpen={isModalOpen} 
-        onClose={() => {
-          setIsModalOpen(false);
-          setTaskToEdit(null); // Limpa ao fechar
-        }} 
-        onTaskCreated={() => loadTasks()} // Atualiza a lista suavemente
-        taskToEdit={taskToEdit} // Passa a task para o Modal
+        onClose={() => { setIsModalOpen(false); setTaskToEdit(null); }} 
+        onTaskCreated={loadTasks} 
+        taskToEdit={taskToEdit} 
       />
+
+      {viewTask && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-60 backdrop-blur-sm">
+          <div className="bg-[#fffdfa] w-full max-w-lg p-8 rounded-2xl shadow-2xl border-l-10px border-gray-900">
+            <div className="flex justify-between items-start mb-2">
+              <h2 className="text-3xl font-black text-gray-900">{viewTask.title}</h2>
+              <button onClick={() => setViewTask(null)} className="text-gray-400 hover:text-black text-xl">✕</button>
+            </div>
+            <p className="text-gray-500 italic mb-6 border-b pb-4">{viewTask.caption}</p>
+            <div className="bg-white/50 p-4 rounded-xl border border-gray-100 mb-8 min-h-100px">
+              <p className="text-gray-800 leading-relaxed whitespace-pre-wrap">{viewTask.content || "Sem descrição."}</p>
+            </div>
+            <div className="flex items-center justify-between pt-4 border-t border-gray-100">
+              <div className="flex gap-6">
+                <button 
+                  onClick={() => {
+                    const t = viewTask;
+                    setViewTask(null);
+                    setTaskToEdit(t);
+                    setIsModalOpen(true);
+                  }}
+                  className="flex items-center gap-2 text-sm font-bold text-blue-600 hover:underline"
+                >
+                  ✏️ Editar
+                </button>
+                <button 
+                  onClick={() => handleDeleteTask(viewTask.id)}
+                  className="flex items-center gap-2 text-sm font-bold text-red-600 hover:underline"
+                >
+                  🗑️ Excluir
+                </button>
+              </div>
+              <button onClick={() => setViewTask(null)} className="bg-gray-900 text-white px-6 py-2 rounded-lg font-bold text-sm">Fechar</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
