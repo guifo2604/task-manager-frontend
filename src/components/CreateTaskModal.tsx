@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
-import { api } from "../services/api";
-import type { Task } from "../types";
+import { useAuth } from "../contexts/AuthContext";
+import { taskService } from "../services/taskService";
+import type { Task, TaskRequest } from "../types";
 
 interface CreateTaskModalProps {
   isOpen: boolean;
@@ -10,14 +11,15 @@ interface CreateTaskModalProps {
 }
 
 export function CreateTaskModal({ isOpen, onClose, onTaskCreated, taskToEdit }: CreateTaskModalProps) {
+  const { user } = useAuth(); 
   const [title, setTitle] = useState("");
   const [caption, setCaption] = useState("");
   const [content, setContent] = useState("");
   const [dataFinal, setDataFinal] = useState("");
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setTitle(taskToEdit?.title || "");
       setCaption(taskToEdit?.caption || "");
       setContent(taskToEdit?.content || "");
@@ -29,9 +31,12 @@ export function CreateTaskModal({ isOpen, onClose, onTaskCreated, taskToEdit }: 
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (!user) return; 
+
+    setLoading(true);
+
     try {
-      const storedUser = JSON.parse(localStorage.getItem("@TaskApp:user") || "{}");
-      const payload = {
+      const payload: TaskRequest = {
         title,
         caption,
         content,
@@ -41,31 +46,96 @@ export function CreateTaskModal({ isOpen, onClose, onTaskCreated, taskToEdit }: 
       };
 
       if (taskToEdit) {
-        await api.put(`/tasks/${taskToEdit.id}/user/${storedUser.idUser}`, payload);
+        await taskService.update(taskToEdit.id, user.idUser, payload);
       } else {
-        await api.post(`/tasks/${storedUser.idUser}`, payload);
+       
+        await taskService.create(user.idUser, payload);
       }
 
-      await onTaskCreated();
-      onClose();
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    } catch (error) {
-      alert("Erro ao salvar.");
+      await onTaskCreated(); 
+      onClose();             
+    
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } catch (error: any) {
+    
+      const errorData = error.response?.data;
+      
+      if (Array.isArray(errorData)) {
+        alert(errorData.join("\n")); 
+      } else {
+        alert("Erro ao guardar tarefa. Verifique os dados.");
+      }
+    } finally {
+      setLoading(false);
     }
   }
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-70 backdrop-blur-sm">
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
       <div className="bg-white w-full max-w-md p-6 rounded-2xl shadow-2xl">
-        <h2 className="text-xl font-bold mb-4">{taskToEdit ? "Editar Tarefa" : "Nova Tarefa"}</h2>
+        <h2 className="text-xl font-bold mb-4 text-gray-900">
+          {taskToEdit ? "Editar Tarefa" : "Nova Tarefa"}
+        </h2>
+        
         <form onSubmit={handleSubmit} className="space-y-4">
-          <input value={title} onChange={e => setTitle(e.target.value)} placeholder="Título" className="w-full p-2 border rounded-lg outline-none focus:border-black" required />
-          <input value={caption} onChange={e => setCaption(e.target.value)} placeholder="Resumo" className="w-full p-2 border rounded-lg outline-none focus:border-black" />
-          <textarea value={content} onChange={e => setContent(e.target.value)} placeholder="Descrição" className="w-full p-2 border rounded-lg h-24 outline-none focus:border-black" />
-          <input type="date" value={dataFinal} onChange={e => setDataFinal(e.target.value)} className="w-full p-2 border rounded-lg outline-none focus:border-black" required />
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Título</label>
+            <input 
+              value={title} 
+              onChange={e => setTitle(e.target.value)} 
+              placeholder="Ex: Estudar Java" 
+              className="w-full p-2 border rounded-lg outline-none focus:ring-2 focus:ring-gray-900 transition-all" 
+              required 
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Resumo (opcional)</label>
+            <input 
+              value={caption} 
+              onChange={e => setCaption(e.target.value)} 
+              placeholder="Breve descrição" 
+              className="w-full p-2 border rounded-lg outline-none focus:ring-2 focus:ring-gray-900 transition-all" 
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Conteúdo</label>
+            <textarea 
+              value={content} 
+              onChange={e => setContent(e.target.value)} 
+              placeholder="Detalhes da tarefa..." 
+              className="w-full p-2 border rounded-lg h-28 outline-none focus:ring-2 focus:ring-gray-900 transition-all resize-none" 
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Data de Entrega</label>
+            <input 
+              type="date" 
+              value={dataFinal} 
+              onChange={e => setDataFinal(e.target.value)} 
+              className="w-full p-2 border rounded-lg outline-none focus:ring-2 focus:ring-gray-900 transition-all" 
+              required 
+            />
+          </div>
+
           <div className="flex gap-2 justify-end mt-6">
-            <button type="button" onClick={onClose} className="px-4 py-2 text-gray-500">Cancelar</button>
-            <button type="submit" className="px-6 py-2 bg-gray-900 text-white rounded-lg font-bold">Salvar</button>
+            <button 
+              type="button" 
+              onClick={onClose} 
+              className="px-4 py-2 text-gray-500 font-medium hover:text-gray-700"
+              disabled={loading}
+            >
+              Cancelar
+            </button>
+            <button 
+              type="submit" 
+              className="px-6 py-2 bg-gray-900 text-white rounded-lg font-bold hover:bg-black transition-colors disabled:opacity-50"
+              disabled={loading}
+            >
+              {loading ? "A guardar..." : "Salvar"}
+            </button>
           </div>
         </form>
       </div>

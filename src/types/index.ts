@@ -17,6 +17,9 @@ export interface Task {
     caption: string;
     content: string;
     status: TaskStatus;
-    dataInicial: string;
+    dataInicial: string; 
     dataFinal: string;
+    userId: number;     
 }
+
+export type TaskRequest = Omit<Task, 'id' | 'userId' | 'userName'>;

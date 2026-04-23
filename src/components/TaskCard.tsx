@@ -1,4 +1,4 @@
-import type { Task } from "../types";
+import type { Task, TaskStatus } from "../types";
 
 const statusTranslator = {
   ToDo: { label: "A Fazer", color: "bg-gray-100 text-gray-600 border-gray-200" },
@@ -15,8 +15,7 @@ const formatDate = (dateString: string) => {
 
 interface TaskCardProps {
   task: Task;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  onUpdateStatus: (id: number, currentStatus: any) => Promise<void>;
+  onUpdateStatus: (id: number, currentStatus: TaskStatus) => Promise<void>;
   onView: (task: Task) => void;
 }
 
