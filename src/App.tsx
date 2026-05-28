@@ -9,7 +9,7 @@ import type { JSX } from 'react';
 
 
 function PrivateRoute({ children }: { children: JSX.Element }) {
-  const { signed, _user } = useAuth();
+  const { signed, user } = useAuth();
 
 
   if (!signed) {
