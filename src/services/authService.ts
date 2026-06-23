@@ -20,7 +20,7 @@ export const authService = {
   },
 
   register: async (data: RegisterData) => {
-    const response = await api.post<User>('/auth', data);
+    const response = await api.post<User>('/auth/register', data);
     return response.data;
   }
 };
